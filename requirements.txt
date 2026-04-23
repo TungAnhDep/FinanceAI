@@ -1,0 +1,11 @@
+pandas==3.0.2
+vnstock==3.5.1
+langchain-core
+langgraph
+langchain-google-genai
+fastapi
+uvicorn
+vnstock
+pandas
+pandas-ta
+python-dotenv
