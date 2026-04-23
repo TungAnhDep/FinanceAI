@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS financial_news (
     publish_date TIMESTAMP,
     is_analyzed BOOLEAN DEFAULT FALSE, -- Cờ để Agent quét
     sentiment_score FLOAT,      
+    sentiment_label VARCHAR(20),
     summary TEXT,   -- Kết quả sau khi LLM phân tích
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
