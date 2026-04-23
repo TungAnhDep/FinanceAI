@@ -1,9 +1,10 @@
 import hashlib
-import psycopg2
-from datetime import datetime
-from dotenv import load_dotenv
 import os
 
+import psycopg2
+from dotenv import load_dotenv
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCHEMA_PATH = os.path.join(CURRENT_DIR, "schema.sql")
 load_dotenv()
 
 class NewsDB:
@@ -21,10 +22,14 @@ class NewsDB:
         self.conn = psycopg2.connect(**self.db_config)
         self.cur = self.conn.cursor()
         
-        if os.path.exists("schema.sql"):
-            with open("schema.sql", "r", encoding="utf-8") as f:
-                self.cur.execute(f.read())
-            self.conn.commit()
+        if os.path.exists(SCHEMA_PATH):
+            try:
+                with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
+                    self.cur.execute(f.read())
+                self.conn.commit()
+            except Exception as e:
+                self.conn.rollback()
+                print(f"Lỗi khi chạy schema: {e}")
         
         return self
 

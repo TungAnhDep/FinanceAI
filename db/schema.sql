@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS financial_news (
     content_hash VARCHAR(64) UNIQUE, -- SHA-256 để kiểm tra nội dung trùng
     publish_date TIMESTAMP,
     is_analyzed BOOLEAN DEFAULT FALSE, -- Cờ để Agent quét
-    sentiment_score FLOAT,         -- Kết quả sau khi LLM phân tích
+    sentiment_score FLOAT,      
+    summary TEXT,   -- Kết quả sau khi LLM phân tích
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
