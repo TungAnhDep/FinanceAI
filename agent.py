@@ -1,18 +1,22 @@
 
-import os
-from dotenv import load_dotenv
-from typing import TypedDict, Annotated, List
-from langgraph.graph import StateGraph, END
-from langchain_core.messages import BaseMessage, HumanMessage,ToolMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 import operator
-from tools import get_stock_data, get_company_info
+import os
+from typing import Annotated, List, TypedDict
+
+from dotenv import load_dotenv
+from langchain_core.messages import ToolMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langgraph.graph import END, StateGraph
+
+from tools import get_company_info, get_stock_data, get_market_sentiment
+
+
 class AgentState(TypedDict):
     messages: Annotated[List, operator.add]
 load_dotenv()
 api_key = os.getenv("GOOGLE_API")
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0, api_key = api_key)
-tools = [get_stock_data, get_company_info]
+tools = [get_stock_data, get_company_info, get_market_sentiment]
 llm_with_tools = llm.bind_tools(tools)
 
 def call_gemini(state: AgentState):
@@ -28,6 +32,7 @@ def execute_tool_calls(state: AgentState):
         selected_tool = {
             "get_stock_data": get_stock_data,
             "get_company_info": get_company_info,
+            "get_market_sentiment": get_market_sentiment
 
         }[tool_call["name"]]
 
