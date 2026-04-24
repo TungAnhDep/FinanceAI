@@ -1,63 +1,69 @@
+import json
 from typing import List
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from langchain_core.messages import HumanMessage
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
+from agent import AgentState, FinancialResponse
 from agent import app as agent_workflow
 
 app = FastAPI(title="Financial AI Agent API", version="1.0")
 app.mount("/download", StaticFiles(directory="exports"), name="download")
-# Cấu trúc dữ liệu đầu vào cho API
 class ChatRequest(BaseModel):
     query: str
 
-# Cấu trúc dữ liệu trả về
 class ChatResponse(BaseModel):
     query: str
-    response: str
+    response: FinancialResponse
     steps: List[dict]
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
+async def chat_endpoint(request: Request, chat_request: ChatRequest):
     try:
+        base_url = str(request.base_url).rstrip("/")
+        config = {"configurable": {"base_url": base_url}}
+        input_state: AgentState = {
+            "messages": [HumanMessage(content=chat_request.query)]
+        }
         steps_log = []
-        final_answer = ""
+        
+        final_structured_data = FinancialResponse(summary="Đang xử lý...")
         
         async for event in agent_workflow.astream(
-            {"messages": [HumanMessage(content=request.query)]}
+            input_state, 
+            config = config,
+            stream_mode="updates",
         ):
             for node, value in event.items():
                 last_msg = value["messages"][-1]
                 
                 step_info = {"node": node}
                 
-                if node == "gemini_brain":
-                    if last_msg.tool_calls:
-                        step_info["action"] = f"Gọi hàm: {last_msg.tool_calls[0]['name']}"
-                    else:
-                        content = last_msg.content
-        
-                        if isinstance(content, list):
-                            # Nếu là list, tìm và nối tất cả các phần có type là 'text'
-                            final_answer = "".join([
-                                part['text'] for part in content 
-                                if isinstance(part, dict) and part.get('type') == 'text'
-                            ])
-                        else:
-                            # Nếu đã là string thì gán trực tiếp
-                            final_answer = str(content)
-                        step_info["action"] = "Trả lời cuối cùng"
-                elif node == "tool_hands":
-                    step_info["action"] = "Đã lấy dữ liệu từ hệ thống"
+                if node == "summarizer":
+                    content = last_msg.content
+                    try:
+                        # Parse trực tiếp vào Model để đảm bảo tính đúng đắn của dữ liệu
+                        data_dict = json.loads(content)
+                        final_structured_data = FinancialResponse(**data_dict)
+                        step_info["action"] = "Đã cấu trúc hóa dữ liệu thành công"
+                    except (json.JSONDecodeError, TypeError, ValidationError) as e:
+                        # Xử lý khi dữ liệu không đúng định dạng
+                        final_structured_data = FinancialResponse(
+                            summary=f"Lỗi định dạng dữ liệu: {str(e)}"
+                        )
+                        step_info["action"] = "Lỗi khi cấu trúc hóa"
+                
+                elif node == "gemini_brain" and hasattr(last_msg, 'tool_calls') and last_msg.tool_calls:
+                    step_info["action"] = f"Gọi hàm: {last_msg.tool_calls[0]['name']}"
                 
                 steps_log.append(step_info)
 
         return ChatResponse(
-            query=request.query,
-            response=final_answer,
+            query=chat_request.query,
+            response=final_structured_data,
             steps=steps_log
         )
         

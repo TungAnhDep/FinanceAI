@@ -1,11 +1,12 @@
 import os
-import pandas_ta as ta # noqa: F401
 from datetime import datetime, timedelta
-from typing import Optional  # Thêm import này
+from typing import Annotated, Optional  # Thêm import này
 
-import dateparser
-from langchain_core.tools import tool
-from vnstock import Company, Quote
+import dateparser  # type: ignore
+import pandas_ta as ta  # noqa: F401
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import tool, InjectedToolArg
+from vnstock import Company, Quote  # type: ignore
 
 from database.db import NewsDB
 
@@ -13,7 +14,7 @@ EXPORT_DIR = "exports"
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
 @tool
-def get_stock_data(ticker: str, start_date: Optional[str] = None, end_date: Optional[str] = None, months: Optional[int] = None):
+def get_stock_data(ticker: str, start_date: Optional[str] = None, end_date: Optional[str] = None, months: Optional[int] = None, config: Annotated[Optional[RunnableConfig], InjectedToolArg] = None):
     """
     Truy xuất dữ liệu giá lịch sử.
     Args:
@@ -49,7 +50,13 @@ def get_stock_data(ticker: str, start_date: Optional[str] = None, end_date: Opti
         df_export = df.reset_index()
         df_export.to_excel(file_path, index=False)
         recent_data = df_export.tail(5).to_dict(orient='records')
-        download_link = f"http://localhost:8000/download/{file_name}"
+        base_url = "http://localhost:8000" # Giá trị mặc định
+        
+        if config and isinstance(config, dict):
+            configurable = config.get("configurable", {})
+            if isinstance(configurable, dict):
+                base_url = configurable.get("base_url", base_url)
+        download_link = f"{base_url}/download/{file_name}"
         return {
             "message": f"Đã xuất dữ liệu lịch sử của {ticker} vào file {file_name}.",
             "download_url": download_link,
