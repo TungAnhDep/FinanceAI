@@ -1,9 +1,9 @@
-import dateparser
 import os
-
+import pandas_ta as ta # noqa: F401
 from datetime import datetime, timedelta
 from typing import Optional  # Thêm import này
 
+import dateparser
 from langchain_core.tools import tool
 from vnstock import Company, Quote
 
@@ -62,7 +62,12 @@ def get_stock_data(ticker: str, start_date: Optional[str] = None, end_date: Opti
 
 @tool
 def get_technical_indicators(ticker: str, days:  str = '100', interval: str = 'd', windows: int = 20):
-    """Truy xuất dữ liệu giá lịch sử từ vnstock"""
+    """Tính toán các chỉ báo kĩ thuật như SMA và RSI cho một mã chứng khoán.
+    Args:        ticker: Mã chứng khoán (ví dụ: 'FPT', 'VCB').
+        days: Số ngày lịch sử muốn lấy dữ liệu (mặc định là '100').
+        interval: Khoảng thời gian giữa các điểm dữ liệu ('d' cho ngày, 'h' cho giờ, v.v.).
+        windows: Số phiên để tính SMA và RSI (mặc định là 20).
+    """
     quote = Quote(symbol=ticker, source='KBS')
     df = quote.history(length=days, interval=interval)
     df.ta.sma(length=windows, append=True)
