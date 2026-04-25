@@ -13,15 +13,16 @@ api_key = os.getenv("GOOGLE_API")
 # Initialize the Google Generative AI model
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=api_key)
 sentiment_pipeline = pipeline(
-    "text-classification", model="mnguyn11/phobert-stock-sentiment-PTDLW"
+    "text-classification",
+    model="mnguyn11/phobert-stock-sentiment-PTDLW",
+    truncation=True,
+    max_length=256,
 )
 
 
-def get_local_sentiment(text):
-    truncated_text = text[:500]
-    result = sentiment_pipeline(truncated_text)[0]
-
-    # Map kết quả nhãn về thang điểm từ -1 đến 1
+def get_local_sentiment(title, content):
+    text = f"{title}. {content[:500]}" if content else title
+    result = sentiment_pipeline(text)[0]
     label = result["label"]
     score = result["score"]
     mapping = {
@@ -29,7 +30,7 @@ def get_local_sentiment(text):
         "NEG": ("Negative", -score),
         "NEU": ("Neutral", score),
     }
-    return mapping.get(label, ("Neutral", 0.0))  # Trung lập
+    return mapping.get(label, ("Neutral", 0.0))
 
 
 def process_pending_news():
@@ -41,8 +42,13 @@ def process_pending_news():
         rows = db.cur.fetchall()
 
         for row_id, title, content in rows:
-            label, score = get_local_sentiment(content if content else title)
-            prompt = f"Tóm tắt tin tức sau trong tối đa 2 câu: {content[:2000]}"
+            label, score = get_local_sentiment(title, content)
+            prompt = (
+                "Tóm tắt tin tài chính sau trong đúng 2 câu tiếng Việt. "
+                "Tập trung vào: (1) sự kiện/hành động chính, (2) tác động tiềm tàng đến giá cổ phiếu. "
+                "Không lặp lại tiêu đề. Không dùng từ ngữ chung chung.\n\n"
+                f"Tiêu đề: {title}\nNội dung: {(content or '')[:2000]}"
+            )
             try:
                 response = llm.invoke(prompt)
 
@@ -56,8 +62,9 @@ def process_pending_news():
                 """,
                     (score, label, data, row_id),
                 )
+                db.conn.commit()
                 print(f"Đã phân tích xong tin ID: {row_id}")
-                time.sleep(10)
+                time.sleep(1)
             except Exception as e:
                 print(f"Error at ID {row_id}: {e}")
                 continue

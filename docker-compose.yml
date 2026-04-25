@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:15
+    container_name: financial_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME} # Phải khớp với tên trong NewsDB
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - .:/app
+    ports:
+      - "5432:5432"
+
+  app:
+    build: .
+    container_name: financial_agent_app
+    restart: always
+    environment:
+      - GOOGLE_API=${GOOGLE_API}
+      - DB_HOST=db
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - .:/app
+      - ./exports:/app/exports # History price path
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

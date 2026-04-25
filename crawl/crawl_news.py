@@ -3,108 +3,108 @@ import io
 from concurrent.futures import ProcessPoolExecutor
 
 import fitz
+import httpx
 import pytesseract
-import requests
 from PIL import Image
 from playwright.async_api import async_playwright
 
 from database.db import NewsDB
 
+# Giới hạn số lượng trang mở cùng lúc để tránh crash/ban
+CONCURRENCY_LIMIT = 5
+semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
-async def crawl_cafef(ticker, url):
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(user_agent="Mozilla/5.0...")
+
+async def process_article(context, ticker, href, db, executor):
+    """Xử lý từng bài viết riêng biệt"""
+    async with semaphore:
+        full_url = f"https://cafef.vn{href}" if href.startswith("/") else href
         page = await context.new_page()
+        try:
+            await page.goto(full_url, timeout=60000, wait_until="domcontentloaded")
 
-        await page.goto(url)
+            # Kiểm tra PDF
+            pdf_link = await page.query_selector("a[href$='.pdf']")
+            if pdf_link:
+                pdf_url = await pdf_link.get_attribute("href")
+                # Chạy OCR trong thread pool để không block async loop
+                content = await extract_pdf_content(pdf_url, executor)
+            else:
+                content = await page.eval_on_selector_all(
+                    ".contentdetail p",
+                    "els => els.map(e => e.innerText).join('\\n')",
+                )
 
-        # 1. Lấy danh sách bài viết
-        links = await page.query_selector_all(".docnhanhTitle")
-        max_articles = 20
-        links = links[:max_articles]
-        with NewsDB() as db:
-            for link in links:
-                title = await link.inner_text()
-                href = await link.get_attribute("href")
-                full_url = f"https://cafef.vn{href}" if href.startswith("/") else href
-
-                # Chuyển hướng sang trang chi tiết
-                detail_page = await browser.new_page()
-                await detail_page.goto(full_url)
-
-                # 2. Kiểm tra nếu là trang chứa PDF (Thường có class hoặc text đặc trưng)
-                pdf_link_element = await detail_page.query_selector("a[href$='.pdf']")
-
-                if pdf_link_element:
-                    pdf_url = await pdf_link_element.get_attribute("href")
-                    # Xử lý PDF
-                    content = extract_pdf_content(pdf_url)
-                    print(f"PDF Content from {pdf_url}...")
-                else:
-                    # Xử lý Text thường
-                    paragraphs = await detail_page.query_selector_all("p[dir='ltr']")
-                    texts = []
-
-                    for p in paragraphs:
-                        text = await p.inner_text()
-                        if text.strip():
-                            texts.append(text.strip())
-
-                    content = "\n".join(texts)
-                    print(f"Text Content: {content[:100]}...")
-                if not content.strip():
-                    continue
+            if content.strip():
+                title = await page.title()
                 is_new = db.insert_news(ticker.upper(), full_url, title, content)
-                if is_new:
-                    print(f"Đã lưu tin mới: {title[:50]}...")
-                else:
-                    print("Tin đã tồn tại, bỏ qua.")
+                print(
+                    f"[{ticker}] {'Lưu mới' if is_new else 'Bỏ qua'}: {title[:50]}..."
+                )
+        except Exception as e:
+            print(f"Lỗi khi xử lý {full_url}: {e}")
+        finally:
+            await page.close()
 
-                await detail_page.close()
-        await browser.close()
+
+async def crawl_ticker(browser, ticker, db, executor):
+    context = await browser.new_context()
+    try:
+        async with semaphore:
+            url = f"https://cafef.vn/du-lieu/tin-doanh-nghiep/{ticker.lower()}/event.chn#tat-ca"
+            page = await context.new_page()
+            await page.goto(url, wait_until="domcontentloaded")
+
+            links = await page.query_selector_all(".docnhanhTitle")
+            hrefs = [await link.get_attribute("href") for link in links[:15]]
+
+            await page.close()
+
+        tasks = [process_article(context, ticker, href, db, executor) for href in hrefs]
+        await asyncio.gather(*tasks)
+    finally:
+        await context.close()
 
 
 def ocr_page_worker(page_data):
-    """Hàm worker để xử lý OCR cho duy nhất 1 trang (Chạy trên 1 core CPU)"""
     try:
         img = Image.open(io.BytesIO(page_data))
-        text = pytesseract.image_to_string(img, lang="vie+eng")
-        return text
+        return pytesseract.image_to_string(img, lang="vie+eng")
     except Exception as e:
-        return f"[Lỗi OCR trang]: {str(e)}"
+        return f"[Lỗi OCR]: {str(e)}"
 
 
-def extract_pdf_content(pdf_url):
-    """Hàm điều phối: Chia nhỏ PDF và đẩy vào các nhân CPU"""
-    print(f"--- Đang tải và xử lý PDF: {pdf_url} ---")
-    response = requests.get(pdf_url, timeout=20)
+async def extract_pdf_content(pdf_url, executor):
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.get(pdf_url)
 
-    # Mở PDF từ bộ nhớ bằng PyMuPDF
     doc = fitz.open(stream=response.content, filetype="pdf")
-    page_images_bytes = []
 
-    # Bước 1: Chuyển tất cả trang PDF thành ảnh (Render) - Bước này cực nhanh
+    page_images_bytes = []
     for page in doc:
         pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
         page_images_bytes.append(pix.tobytes())
-
     doc.close()
 
-    # Bước 2: Sử dụng ProcessPoolExecutor để chạy song song trên CPU
-    # max_workers có thể để bằng số nhân CPU của bạn (ví dụ: 4 hoặc 8)
-    full_text = []
-    with ProcessPoolExecutor(max_workers=4) as executor:
-        results = list(executor.map(ocr_page_worker, page_images_bytes))
-        full_text = results
+    loop = asyncio.get_event_loop()
+    results = await asyncio.gather(
+        *(loop.run_in_executor(executor, ocr_page_worker, b) for b in page_images_bytes)
+    )
 
-    return "\n\n--- KẾT THÚC TRANG ---\n\n".join(full_text)
+    return "\n\n".join(results)
 
 
 async def main():
-    ticker = "fpt"
-    url = f"https://cafef.vn/du-lieu/tin-doanh-nghiep/{ticker}/event.chn#tat-ca"
-    await crawl_cafef(ticker, url)
+    tickers = ["FPT", "VNM"]
+    with NewsDB() as db:
+        with ProcessPoolExecutor(max_workers=4) as executor:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+
+                ticker_tasks = [crawl_ticker(browser, t, db, executor) for t in tickers]
+                await asyncio.gather(*ticker_tasks)
+
+                await browser.close()
 
 
 if __name__ == "__main__":

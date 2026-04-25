@@ -22,7 +22,8 @@ def get_stock_data(
     months: Optional[int] = None,
     indicator: bool = True,
     config: Annotated[Optional[RunnableConfig], InjectedToolArg] = None,
-    windows: int = 20,
+    rsi_window: int = 14,
+    sma_window: int = 20,
 ):
     """
     Truy xuất dữ liệu giá lịch sử.
@@ -31,9 +32,12 @@ def get_stock_data(
         start_date: Ngày bắt đầu (định dạng 'DD-MM-YYYY').
         end_date: Ngày kết thúc (định dạng 'DD-MM-YYYY'). Nếu không có, mặc định là hôm nay.
         months: Số tháng gần nhất muốn lấy dữ liệu (ví dụ: 3, 6). Nếu có start_date thì bỏ qua tham số này.
-        indicator: Nếu True, sẽ tính toán và trả về thêm chỉ báo SMA và RSI. Nếu người dùng chỉ hỏi về giá lịch sử thì sẽ là False.
-        windows: Kích thước cửa sổ cho các chỉ báo kỹ thuật. Nếu không cung cấp, mặc định sẽ là 20.
-    """
+        indicator: True nếu câu hỏi liên quan đến phân tích kỹ thuật, xu hướng, đánh giá. False khi user chỉ hỏi giá / OHLCV thuần.
+         rsi_window: Chu kỳ RSI. Mặc định 14 (chuẩn Wilder).
+            Chỉ đổi khi user nói rõ (ví dụ "RSI 9 ngày").
+        sma_window: Chu kỳ SMA. Mặc định 20 (ngắn hạn).
+            Đề xuất: 20 cho ngắn hạn (≤3 tháng), 50 cho trung hạn,
+            200 cho dài hạn. Đổi theo horizon của câu hỏi."""
     try:
         quote = Quote(symbol=ticker.upper(), source="KBS")
 
@@ -74,15 +78,15 @@ def get_stock_data(
                 "excel_file_path": file_path,
                 "recent_data": recent_data,
             }
-        df.ta.sma(length=windows, append=True)
-        df.ta.rsi(length=windows, append=True)
+        df.ta.sma(length=sma_window, append=True)
+        df.ta.rsi(length=rsi_window, append=True)
         return {
             "message": f"Đã xuất dữ liệu lịch sử của {ticker} vào file {file_name}.",
             "download_url": download_link,
             "excel_file_path": file_path,
             "recent_data": recent_data,
-            "SMA": round(float(df[f"SMA_{windows}"].iloc[-1]), 2),
-            "RSI": round(float(df[f"RSI_{windows}"].iloc[-1]), 2),
+            "SMA": round(float(df[f"SMA_{sma_window}"].iloc[-1]), 2),
+            "RSI": round(float(df[f"RSI_{rsi_window}"].iloc[-1]), 2),
         }
     except Exception as e:
         return f"Lỗi khi xử lý dữ liệu: {str(e)}"
@@ -99,11 +103,12 @@ def get_company_info(ticker: str, category: str, filter_by: str = "working"):
             - 'shareholders': Danh sách cổ đông
             - 'subsidiaries': Công ty con
             - 'leadership': Ban lãnh đạo/Danh sách cán bộ
-            - 'news': Tin tức doanh nghiệp
         filter_by: Chỉ dùng khi category='leadership'.
             - 'working': Lãnh đạo đang đương nhiệm (mặc định).
             - 'resigned': Lãnh đạo đã nghỉ việc.
             - 'all': Tất cả lịch sử lãnh đạo.
+         LƯU Ý: với category='news' bạn nhận tin gốc chưa phân tích sentiment.
+        Nếu cần đánh giá tâm lý thị trường, hãy dùng `get_market_sentiment` thay vì tool này.
     """
     company = Company(symbol=ticker, source="KBS")
     data_map = {
@@ -112,7 +117,7 @@ def get_company_info(ticker: str, category: str, filter_by: str = "working"):
         "shareholders": company.shareholders,
         "subsidiaries": company.subsidiaries,
         "leadership": company.officers,
-        "news": company.news,
+        # "news": company.news,
         # "earnings": company.earnings(),
         # "financials": company.financials(),
     }
@@ -137,7 +142,7 @@ def get_market_sentiment(ticker: str, limit: int = 5):
 
     with NewsDB() as db:
         query = """
-            SELECT title, sentiment_score, summary, created_at 
+            SELECT title, sentiment_label, summary, created_at 
             FROM financial_news 
             WHERE ticker = %s AND is_analyzed = TRUE
             ORDER BY created_at DESC LIMIT %s
@@ -153,11 +158,7 @@ def get_market_sentiment(ticker: str, limit: int = 5):
             results.append(
                 {
                     "title": r[0],
-                    "sentiment": "Positive"
-                    if r[1] > 0.3
-                    else "Negative"
-                    if r[1] < -0.3
-                    else "Neutral",
+                    "sentiment": r[1],
                     "summary": r[2],
                     "date": str(r[3]),
                 }
