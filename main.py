@@ -1,4 +1,5 @@
 import json
+import os
 from typing import List
 
 import uvicorn
@@ -10,8 +11,13 @@ from pydantic import BaseModel, ValidationError
 from agent import AgentState, FinancialResponse
 from agent import app as agent_workflow
 
+# Resolve `exports/` relative to this file, NOT the process cwd. Otherwise
+# launching uvicorn from a different directory breaks /download URLs.
+EXPORT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "exports")
+os.makedirs(EXPORT_DIR, exist_ok=True)
+
 app = FastAPI(title="Financial AI Agent API", version="1.0")
-app.mount("/download", StaticFiles(directory="exports"), name="download")
+app.mount("/download", StaticFiles(directory=EXPORT_DIR), name="download")
 
 
 class ChatRequest(BaseModel):

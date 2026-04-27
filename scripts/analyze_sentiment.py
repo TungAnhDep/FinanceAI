@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from transformers import pipeline
 
+from config import GEMINI_API_DELAY
 from database.db import NewsDB
 
 load_dotenv()
@@ -64,7 +65,7 @@ def process_pending_news():
                 )
                 db.conn.commit()
                 print(f"Đã phân tích xong tin ID: {row_id}")
-                time.sleep(1)
+                time.sleep(GEMINI_API_DELAY)
             except Exception as e:
                 print(f"Error at ID {row_id}: {e}")
                 continue
