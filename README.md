@@ -213,7 +213,7 @@ All tunable values live in [`config.py`](config.py). Common knobs:
 | `DEFAULT_MIN_PRIORITY` | 3 | 3=VN30, 2=VN100, 1=HOSE+, 0=all |
 | `EXTRACT_BATCH_SIZE` | 50 | Rows per `extract_financial_metrics` run |
 
-Edit and restart the scheduler — no code changes elsewhere needed.
+Edit and restart the scheduler.
 
 ## Data sources
 
