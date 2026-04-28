@@ -11,7 +11,6 @@ from database.db import NewsDB
 load_dotenv()
 api_key = os.getenv("GOOGLE_API")
 
-# Initialize the Google Generative AI model
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=api_key)
 sentiment_pipeline = pipeline(
     "text-classification",
@@ -36,7 +35,6 @@ def get_local_sentiment(title, content):
 
 def process_pending_news():
     with NewsDB() as db:
-        # Lấy các tin chưa phân tích
         db.cur.execute(
             "SELECT id, title, content FROM financial_news WHERE is_analyzed = FALSE"
         )

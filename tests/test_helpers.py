@@ -42,7 +42,7 @@ class TestSafeRound:
         assert _safe_round("not a number") is None
 
     def test_inf_passes_through(self):
-        # inf isn't NaN, so _safe_round currently lets it through; document the behavior.
+        # inf isn't NaN, so _safe_round currently lets it through
         result = _safe_round(float("inf"))
         assert result == float("inf") or math.isinf(result)
 

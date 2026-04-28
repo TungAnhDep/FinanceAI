@@ -1,16 +1,11 @@
-"""Tests for database/period.py — period parsing helpers.
-
-Run with: `pytest tests/test_period.py -v`
-"""
+"Tests for database/period.py — period parsing helpers."
 
 import pytest
 
 from database.period import period_to_date, quarter_to_date
 
 
-# ---------------------------------------------------------------------------
 # period_to_date — string form like 'Q4/2025' / 'CN/2025'
-# ---------------------------------------------------------------------------
 
 
 class TestPeriodToDate:
@@ -34,15 +29,15 @@ class TestPeriodToDate:
         [
             None,
             "",
-            "Q4-2025",          # wrong separator
-            "Q4/abc",           # non-numeric year
-            "Q5/2025",          # invalid quarter (5 in string form is reserved for CN)
-            "Q0/2025",          # quarter must be 1-4
-            "X1/2025",          # not Q or CN prefix
+            "Q4-2025",  # wrong separator
+            "Q4/abc",  # non-numeric year
+            "Q5/2025",  # invalid quarter (5 in string form is reserved for CN)
+            "Q0/2025",  # quarter must be 1-4
+            "X1/2025",  # not Q or CN prefix
             "garbage",
-            "/2025",            # missing head
-            "Q1",               # missing year
-            "Q/2025",           # empty quarter number
+            "/2025",  # missing head
+            "Q1",  # missing year
+            "Q/2025",  # empty quarter number
         ],
     )
     def test_invalid_returns_none(self, bad_input):

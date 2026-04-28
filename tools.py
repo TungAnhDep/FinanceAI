@@ -138,7 +138,6 @@ def get_stock_data(
         file_path = os.path.join(EXPORT_DIR, file_name)
         df_export = df.reset_index()
         _write_excel_atomic(file_path, df_export)
-        # recent_data = df_export.tail(5).to_dict(orient="records")
         base_url = "http://localhost:8000"
         if config and isinstance(config, dict):
             configurable = config.get("configurable", {})
@@ -149,8 +148,6 @@ def get_stock_data(
             return {
                 "message": f"Đã xuất dữ liệu lịch sử của {ticker} vào file {file_name}.",
                 "download_url": download_link,
-                # "excel_file_path": file_path,
-                # "recent_data": recent_data,
                 "stats": {
                     "latest_close": float(df["close"].iloc[-1]),
                     "period_high": float(df["high"].max()),
@@ -391,7 +388,6 @@ def get_financial_metrics(
                 "unit": unit,
             }
 
-        # Sort by chronological key (most recent first), then take n_periods
         ordered_keys = sorted(by_period.keys(), key=_period_sort_key, reverse=True)
         ordered = [(k, by_period[k]) for k in ordered_keys[:n_periods]]
         if not ordered:

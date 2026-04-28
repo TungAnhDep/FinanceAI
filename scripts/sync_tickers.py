@@ -5,11 +5,9 @@ from database.db import NewsDB
 
 def sync_tickers():
     listing = Listing()
-
-    # Get full universe with exchange + industry
     all_df = listing.symbols_by_exchange()
 
-    # Get index memberships for prioritization
+    # Index membership drives crawl priority (VN30 ranks highest).
     try:
         vn30 = set(listing.symbols_by_group("VN30").tolist())
     except Exception:
