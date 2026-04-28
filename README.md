@@ -27,8 +27,8 @@ Agent: → fetches price + SMA/RSI (3-month window)
   - `get_company_info` — profile, leadership, shareholders, subsidiaries
   - `get_market_sentiment` — pre-analyzed news from PhoBERT + Gemini summaries
   - `get_analyst_reports` — broker target prices, recommendations, theses
-  - `get_financial_reports` — BCTC PDFs (audited annual + quarterly)
-  - `get_financial_metrics` — structured numbers (revenue, NPAT, EPS) extracted from BCTC
+  - `get_financial_reports` — Financial reports PDFs (audited annual + quarterly)
+  - `get_financial_metrics` — structured numbers (revenue, NPAT, EPS) extracted from Financial reports
 - **Three crawlers** keeping the data warehouse fresh from CafeF
 - **Scheduler** automating the full pipeline (news every 30 min, analyst/financial reports daily)
 - **Structured Pydantic output** so frontends get a stable schema
@@ -146,9 +146,9 @@ The scheduler runs:
 |---|---|---|
 | `crawl_news` | every 30 min | Latest CafeF news per ticker |
 | `crawl_analyst` | daily 8:00 | Broker analyst report PDFs |
-| `crawl_bctc` | daily 6:00 | BCTC (financial statements) PDFs |
+| `crawl_financial_reports` | daily 6:00 | Financial reports (financial statements) PDFs |
 | `analyze_sentiment` | every 15 min | PhoBERT + Gemini summaries on new rows |
-| `extract_metrics` | every hour | Structured numbers from BCTC raw text |
+| `extract_metrics` | every hour | Structured numbers from Financial reports raw text |
 
 For production, register the scheduler with your OS service manager (systemd / Windows Task Scheduler) so it survives reboots.
 
@@ -177,14 +177,14 @@ python -m scripts.extract_financial_metrics
 ├── crawl/
 │   ├── crawl_news.py                # CafeF news (Playwright + OCR)
 │   ├── crawl_analyst_reports.py     # CafeF analyst reports (Playwright)
-│   └── crawl_financial_reports.py   # CafeF BCTC API (httpx)
+│   └── crawl_financial_reports.py   # CafeF Financial reports API (httpx)
 │
 ├── scripts/
 │   ├── init_db.py                  # Apply schema.sql once
 │   ├── sync_tickers.py             # Refresh ticker universe from vnstock
 │   ├── load_tickers.py             # Read tickers filtered by priority
 │   ├── analyze_sentiment.py        # PhoBERT sentiment + Gemini summaries
-│   ├── extract_financial_metrics.py # Structured BCTC numbers
+│   ├── extract_financial_metrics.py # Structured Financial reports numbers
 │   └── scheduler.py                # APScheduler driver
 │
 ├── database/
@@ -207,8 +207,8 @@ All tunable values live in [`config.py`](config.py). Common knobs:
 | Setting | Default | Effect |
 |---|---|---|
 | `NEWS_PAGE_CONCURRENCY` | 5 | Parallel article pages per ticker |
-| `TICKER_CONCURRENCY` | 4 | Parallel tickers in analyst/BCTC crawl |
-| `BCTC_YEARS_BACK` | 2 | How far back BCTC crawler goes |
+| `TICKER_CONCURRENCY` | 4 | Parallel tickers in analyst/Financial reports crawl |
+| `BCTC_YEARS_BACK` | 2 | How far back Financial reports crawler goes |
 | `ANALYST_MONTHS_BACK` | 12 | How far back analyst crawler goes |
 | `DEFAULT_MIN_PRIORITY` | 3 | 3=VN30, 2=VN100, 1=HOSE+, 0=all |
 | `EXTRACT_BATCH_SIZE` | 50 | Rows per `extract_financial_metrics` run |
@@ -222,7 +222,7 @@ Edit and restart the scheduler — no code changes elsewhere needed.
 | **vnstock** (KBS) | Python lib | OHLCV, company info, leadership |
 | **CafeF news** (`cafef.vn/du-lieu/tin-doanh-nghiep/...`) | Playwright + OCR | Per-ticker news + corporate disclosures |
 | **CafeF analyst reports** (`cafef.vn/du-lieu/phan-tich-bao-cao/...`) | Playwright + click intercept | Broker target prices, recommendations |
-| **CafeF BCTC API** (`cafef.vn/du-lieu/Ajax/PageNew/FileBCTC.ashx`) | httpx + JSON | Audited and quarterly financial statements |
+| **CafeF Financial reports API** (`cafef.vn/du-lieu/Ajax/PageNew/FileBCTC.ashx`) | httpx + JSON | Audited and quarterly financial statements |
 
 ## Database schema
 
@@ -231,7 +231,7 @@ Five tables, all keyed by `ticker`:
 - `tickers` — universe, with priority for crawl ordering
 - `financial_news` — raw + sentiment-analyzed news
 - `analyst_reports` — broker reports + LLM-extracted target prices
-- `financial_reports` — BCTC PDFs + raw OCR text
+- `financial_reports` — Financial reports PDFs + raw OCR text
 - `financial_metrics` — structured numbers (revenue, NPAT, EPS, etc.) extracted by LLM
 
 See [`database/schema.sql`](database/schema.sql).
@@ -262,12 +262,11 @@ A typical 3-tool query takes ~3-5s end-to-end. The summarizer is the biggest sin
 ## Known limitations
 
 - **vnstock free tier rate limits.** Heavy concurrent crawls may get throttled. Their banner advertises a paid tier with 5x rate limits.
-- **OCR quality** on older scanned BCTC PDFs is variable. Some pre-2018 reports return garbled text.
-- **`langchain_google_genai` schema bug** prevents using `with_structured_output` via `bind_tools` together — the agent uses a separate summarizer node as a workaround. See agent.py comments.
+- **OCR quality** on older scanned Financial reports PDFs is variable. Some pre-2018 reports return garbled text.
 
 ## License
 
-MIT (or whatever you prefer — add a LICENSE file).
+MIT License.
 
 ## Contributing
 
