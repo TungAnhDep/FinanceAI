@@ -1,4 +1,4 @@
-# Vietnamese Stock Analysis AI Agent
+#FinanceAI: Vietnamese Stock Analysis AI Agent
 
 A LangGraph agent that answers investment questions about Vietnamese-listed stocks. Combines real-time prices, news sentiment, analyst reports, and audited financial statements into structured advice via Gemini 2.5 Flash.
 
