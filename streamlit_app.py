@@ -1,12 +1,3 @@
-"""Minimal Streamlit frontend for the Vietnamese Stock AI Agent.
-
-Run with:
-    streamlit run streamlit_app.py
-
-Requires the FastAPI agent to be running on AGENT_URL (default http://localhost:8000).
-Override with: AGENT_URL=http://my-host:8000 streamlit run streamlit_app.py
-"""
-
 import os
 
 import requests
@@ -19,7 +10,7 @@ TIMEOUT_SECONDS = 120
 
 
 st.set_page_config(
-    page_title="Vietnamese Stock AI Agent",
+    page_title="FinanceAI: Vietnamese Stock AI Agent",
     page_icon="📈",
     layout="wide",
 )
@@ -150,7 +141,7 @@ def _render_profile(data: list) -> None:
 
 # ─── Page layout ────────────────────────────────────────────────────────────
 
-st.title("📈 Vietnamese Stock AI Agent")
+st.title("FinanceAI: Vietnamese Stock AI Agent")
 
 with st.sidebar:
     st.markdown("### Ví dụ")
