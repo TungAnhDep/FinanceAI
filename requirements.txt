@@ -34,5 +34,9 @@ torch
 # Scheduling
 apscheduler
 
+# Frontend
+streamlit
+requests
+
 # Tests
 pytest
