@@ -55,12 +55,10 @@ async def chat_endpoint(request: Request, chat_request: ChatRequest):
                 if node == "summarizer":
                     content = last_msg.content
                     try:
-                        # Parse trực tiếp vào Model để đảm bảo tính đúng đắn của dữ liệu
                         data_dict = json.loads(content)
                         final_structured_data = FinancialResponse(**data_dict)
                         step_info["action"] = "Đã cấu trúc hóa dữ liệu thành công"
                     except (json.JSONDecodeError, TypeError, ValidationError) as e:
-                        # Xử lý khi dữ liệu không đúng định dạng
                         final_structured_data = FinancialResponse(
                             summary=f"Lỗi định dạng dữ liệu: {str(e)}"
                         )

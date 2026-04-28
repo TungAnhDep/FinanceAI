@@ -25,11 +25,10 @@ async def process_article(context, ticker, href, executor):
         try:
             await page.goto(full_url, timeout=60000, wait_until="domcontentloaded")
 
-            # Kiểm tra PDF
             pdf_link = await page.query_selector("a[href$='.pdf']")
             if pdf_link:
                 pdf_url = await pdf_link.get_attribute("href")
-                # Chạy OCR trong thread pool để không block async loop
+                # OCR runs in a process pool so it doesn't block the event loop.
                 content = await extract_pdf_content(pdf_url, executor)
             else:
                 content = await page.eval_on_selector_all(

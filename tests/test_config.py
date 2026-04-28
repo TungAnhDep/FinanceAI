@@ -1,8 +1,6 @@
 """Sanity tests for config.py — guard against accidental edits that break
 downstream assumptions (e.g. setting concurrency to 0, blanking the message
 prefixes the agent prompt depends on).
-
-Run with: `pytest tests/test_config.py -v`
 """
 
 import config
